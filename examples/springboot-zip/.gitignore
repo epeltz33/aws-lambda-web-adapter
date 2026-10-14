@@ -32,5 +32,6 @@ build/
 ### VS Code ###
 .vscode/
 
-.mvn
+# Binary fetched by mvnw; keep maven-wrapper.properties tracked.
+app/.mvn/wrapper/maven-wrapper.jar
 .aws-sam
