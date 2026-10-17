@@ -2,6 +2,13 @@
 
 ### Features
 
+- Translate Amazon VPC Lattice **V2** events into HTTP requests, and the application
+  response back into a VPC Lattice response (`statusCode`, `headers`, `body`,
+  `isBase64Encoded`). Set the Lambda target group's event structure version to
+  **V2**; V1 events are not translated. Path, method, query string (including
+  repeated keys), multi-value headers, and base64 bodies are forwarded to the
+  application, and the VPC Lattice request context is included in
+  `x-amzn-request-context`.
 - Add SnapStart support. The adapter notifies your web application at the SnapStart
   boundary via two opt-in HTTP hooks — `AWS_LWA_SNAPSTART_BEFORE_CHECKPOINT_PATH`
   (before checkpoint) and `AWS_LWA_SNAPSTART_AFTER_RESTORE_PATH` (after restore) —

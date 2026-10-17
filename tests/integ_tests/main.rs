@@ -13,8 +13,10 @@ use httpmock::{
     Method::{DELETE, GET, POST, PUT},
     MockServer,
 };
+use lambda_http::request::{from_str, RequestContext};
 use lambda_http::Body;
 use lambda_http::Context;
+use lambda_http::RequestExt;
 use lambda_web_adapter::{Adapter, AdapterOptions, LambdaInvokeMode, Protocol};
 use tower::{Service, ServiceBuilder};
 
@@ -180,6 +182,138 @@ async fn test_http_basic_request() {
     assert_eq!(200, response.status());
     assert_eq!(response.headers().get("content-length").unwrap(), "11");
     assert_eq!("Hello World", body_to_string(response).await);
+}
+
+/// VPC Lattice V2 event from the Lambda target-group payload.
+/// Header and query values are arrays, which is the V2 shape.
+const VPC_LATTICE_V2_EVENT: &str = r#"{
+  "version": "2.0",
+  "path": "/health",
+  "method": "POST",
+  "headers": {
+    "accept": ["*/*"],
+    "user-agent": ["curl/7.68.0"],
+    "x-forwarded-for": ["10.0.2.100"],
+    "multi": ["x", "y"]
+  },
+  "queryStringParameters": {
+    "state": ["prod"],
+    "multi": ["a", "DEF", "g"]
+  },
+  "body": "All is good",
+  "isBase64Encoded": false,
+  "requestContext": {
+    "serviceNetworkArn": "arn:aws:vpc-lattice:ap-southeast-2:123456789012:servicenetwork/sn-0bf3f2882e9cc805a",
+    "serviceArn": "arn:aws:vpc-lattice:ap-southeast-2:123456789012:service/svc-0a40eebed65f8d69c",
+    "targetGroupArn": "arn:aws:vpc-lattice:ap-southeast-2:123456789012:targetgroup/tg-6d0ecf831eec9f09",
+    "identity": {
+      "sourceVpcArn": "arn:aws:ec2:ap-southeast-2:123456789012:vpc/vpc-0b8276c84697e7339",
+      "type": "AWS_IAM",
+      "principal": "arn:aws:iam::123456789012:role/service-role/HealthChecker",
+      "principalOrgID": "o-50dc6c495c0c9188"
+    },
+    "region": "ap-southeast-2",
+    "timeEpoch": "1724875399456789"
+  }
+}"#;
+
+const VPC_LATTICE_V2_EVENT_BASE64: &str = r#"{
+  "version": "2.0",
+  "path": "/health",
+  "method": "POST",
+  "headers": {
+    "host": ["www.site.com"],
+    "content-type": ["text/plain"]
+  },
+  "queryStringParameters": {},
+  "body": "QWxsIGlzIGdvb2Q=",
+  "isBase64Encoded": true,
+  "requestContext": {
+    "serviceNetworkArn": "arn:aws:vpc-lattice:ap-southeast-2:123456789012:servicenetwork/sn-0bf3f2882e9cc805a",
+    "serviceArn": "arn:aws:vpc-lattice:ap-southeast-2:123456789012:service/svc-0a40eebed65f8d69c",
+    "targetGroupArn": "arn:aws:vpc-lattice:ap-southeast-2:123456789012:targetgroup/tg-6d0ecf831eec9f09",
+    "region": "ap-southeast-2",
+    "timeEpoch": "1724875399456789"
+  }
+}"#;
+
+#[tokio::test]
+async fn test_vpc_lattice_v2_request_is_forwarded() {
+    let app_server = MockServer::start();
+    let health = app_server.mock(|when, then| {
+        when.method(POST)
+            .path("/health")
+            .query_param("state", "prod")
+            .query_param("multi", "a")
+            .query_param("multi", "DEF")
+            .query_param("multi", "g")
+            .header("user-agent", "curl/7.68.0")
+            .header("accept", "*/*")
+            .header("x-forwarded-for", "10.0.2.100")
+            .header("multi", "x")
+            .header("multi", "y")
+            .header_includes(
+                "x-amzn-request-context",
+                "arn:aws:vpc-lattice:ap-southeast-2:123456789012:service/svc-0a40eebed65f8d69c",
+            )
+            .header_includes("x-amzn-request-context", "HealthChecker")
+            .body("All is good");
+        then.status(204);
+    });
+
+    let mut adapter = Adapter::new(&AdapterOptions {
+        host: app_server.host(),
+        port: app_server.port().to_string(),
+        readiness_check_port: app_server.port().to_string(),
+        readiness_check_path: "/healthcheck".to_string(),
+        ..Default::default()
+    })
+    .expect("Failed to create adapter");
+
+    let mut request = from_str(VPC_LATTICE_V2_EVENT).expect("vpc lattice v2 event should deserialize");
+    assert!(
+        matches!(request.request_context_ref(), Some(RequestContext::VpcLattice(_))),
+        "VPC Lattice V2 events must be recognized as VPC Lattice, not another trigger"
+    );
+    add_lambda_context_to_request(&mut request);
+
+    let response = adapter.call(request).await.expect("Request failed");
+    health.assert();
+    assert_eq!(204, response.status());
+}
+
+#[tokio::test]
+async fn test_vpc_lattice_v2_base64_body_is_decoded() {
+    let app_server = MockServer::start();
+    let health = app_server.mock(|when, then| {
+        when.method(POST)
+            .path("/health")
+            .header("host", "www.site.com")
+            .header("content-type", "text/plain")
+            .body("All is good");
+        then.status(200).body("decoded");
+    });
+
+    let mut adapter = Adapter::new(&AdapterOptions {
+        host: app_server.host(),
+        port: app_server.port().to_string(),
+        readiness_check_port: app_server.port().to_string(),
+        readiness_check_path: "/healthcheck".to_string(),
+        ..Default::default()
+    })
+    .expect("Failed to create adapter");
+
+    let mut request = from_str(VPC_LATTICE_V2_EVENT_BASE64).expect("vpc lattice v2 event should deserialize");
+    assert!(matches!(
+        request.request_context_ref(),
+        Some(RequestContext::VpcLattice(_))
+    ));
+    add_lambda_context_to_request(&mut request);
+
+    let response = adapter.call(request).await.expect("Request failed");
+    health.assert();
+    assert_eq!(200, response.status());
+    assert_eq!("decoded", body_to_string(response).await);
 }
 
 #[tokio::test]
