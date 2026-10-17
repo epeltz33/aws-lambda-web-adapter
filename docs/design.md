@@ -1,6 +1,6 @@
 ## How does it work?
 
-AWS Lambda Web Adapter supports AWS Lambda functions triggered by Amazon API Gateway Rest API, Http API (v2 event format), and Application Load Balancer.
+AWS Lambda Web Adapter supports AWS Lambda functions triggered by Amazon API Gateway Rest API, Http API (v2 event format), Application Load Balancer, and Amazon VPC Lattice (V2 event structure).
 Lambda Web Adapter converts incoming events to http requests and sends to web application, and converts the http response back to lambda event response.
 
 Lambda Web Adapter is a Lambda Extension (since 0.2.0). When the docker image is running inside AWS Lambda Service, Lambda will automatic start the Adapter and 

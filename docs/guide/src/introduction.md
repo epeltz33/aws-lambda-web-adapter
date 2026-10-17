@@ -8,7 +8,7 @@ AWS Lambda Web Adapter lets developers build web apps with familiar frameworks (
 
 ## Key Features
 
-- Supports Amazon API Gateway (REST & HTTP API), Lambda Function URLs, and Application Load Balancer
+- Supports Amazon API Gateway (REST & HTTP API), Lambda Function URLs, Application Load Balancer, and Amazon VPC Lattice (V2 event structure)
 - Works with Lambda managed runtimes, custom runtimes, and Docker OCI images
 - Supports Lambda Managed Instances for multi-concurrent request handling
 - Framework and language agnostic — no new code dependencies

@@ -12,7 +12,7 @@ The same docker image can run on AWS Lambda, Amazon EC2, AWS Fargate, and local 
 ## Features
 
 - Run web applications on AWS Lambda
-- Supports Amazon API Gateway Rest API and Http API endpoints, Lambda Function URLs, and Application Load Balancer
+- Supports Amazon API Gateway Rest API and Http API endpoints, Lambda Function URLs, Application Load Balancer, and Amazon VPC Lattice (V2 event structure)
 - Supports Lambda managed runtimes, custom runtimes and docker OCI images
 - Supports Lambda Managed Instances for multi-concurrent request handling
 - Supports Lambda SnapStart with before-checkpoint and after-restore hooks

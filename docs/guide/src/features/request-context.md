@@ -1,6 +1,6 @@
 # Request & Lambda Context
 
-Lambda Web Adapter forwards API Gateway request context and Lambda invocation context to your web application via HTTP headers.
+Lambda Web Adapter forwards the trigger request context and Lambda invocation context to your web application via HTTP headers. API Gateway, Application Load Balancer, and Amazon VPC Lattice (V2) each supply their own context object; it is forwarded as JSON in the same header.
 
 ## Request Context
 
